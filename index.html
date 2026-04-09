@@ -61,32 +61,15 @@
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    // ⭐ FIXED GROQ API FUNCTION ⭐
+    /* ⭐ NEW SAFE BACKEND VERSION ⭐ */
     async function customAI(userText) {
-
-      const apiKey = "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"; // ← PUT YOUR KEY HERE
-
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      const response = await fetch("/api/groq", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: "llama3-8b-8192",
-          messages: [
-            { role: "user", content: userText }
-          ],
-          max_tokens: 200
-        })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userText })
       });
 
       const data = await response.json();
-
-      if (!data.choices || !data.choices[0].message) {
-        return "Groq API returned an unexpected response.";
-      }
-
       return data.choices[0].message.content;
     }
 
@@ -104,7 +87,7 @@
         const reply = await customAI(text);
         addMessage(reply, "bot");
       } catch {
-        addMessage("Lil' AI couldn't connect to Groq.", "bot");
+        addMessage("Lil' AI couldn't connect to the server.", "bot");
       }
 
       typingIndicator.style.display = "none";
