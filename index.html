@@ -7,24 +7,82 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, sans-serif; }
     body { background: #0f172a; color: #e5e7eb; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 16px; }
-    .chat-container { background: #020617; border-radius: 16px; border: 1px solid #1f2937; width: 100%; max-width: 800px; height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Layout with sidebar */
+    .layout {
+      display: flex;
+      width: 100%;
+      max-width: 1100px;
+      height: 80vh;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid #1f2937;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      background: #0b1120;
+      border-right: 1px solid #1f2937;
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      gap: 10px;
+    }
+
+    .sidebar-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #9ca3af;
+      margin-bottom: 6px;
+    }
+
+    .history-item {
+      padding: 10px;
+      background: #111827;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      border: 1px solid #1f2937;
+      color: #e5e7eb;
+    }
+
+    .history-item:hover {
+      background: #1f2937;
+    }
+
+    /* Chat container */
+    .chat-container { background: #020617; width: 100%; display: flex; flex-direction: column; }
+
     .chat-header { padding: 16px 20px; border-bottom: 1px solid #1f2937; display: flex; align-items: center; gap: 10px; }
     .chat-header-icon { width: 32px; height: 32px; border-radius: 999px; background: radial-gradient(circle at 30% 30%, #22c55e, #0ea5e9 40%, #4f46e5 80%); }
     .chat-header-title { font-weight: 600; font-size: 16px; }
     .chat-header-subtitle { font-size: 12px; color: #9ca3af; }
+
     .chat-messages { flex: 1; padding: 16px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
     .message { max-width: 80%; padding: 10px 12px; border-radius: 12px; font-size: 14px; line-height: 1.4; white-space: pre-wrap; }
     .message.user { align-self: flex-end; background: #1d4ed8; border-bottom-right-radius: 4px; }
     .message.bot { align-self: flex-start; background: #020617; border: 1px solid #1f2937; border-bottom-left-radius: 4px; }
     .message.system { align-self: center; color: #6b7280; font-size: 12px; }
+
     .chat-input-area { border-top: 1px solid #1f2937; padding: 10px 12px; display: flex; gap: 8px; background: #020617; }
     .chat-input { flex: 1; resize: none; border-radius: 999px; border: 1px solid #374151; padding: 10px 14px; background: #020617; color: #e5e7eb; }
     .send-button { border-radius: 999px; border: none; padding: 10px 16px; background: linear-gradient(135deg, #22c55e, #0ea5e9); color: #020617; cursor: pointer; }
+
     .typing-indicator { font-size: 12px; color: #9ca3af; padding: 0 20px 8px; }
   </style>
 </head>
 <body>
 
+<div class="layout">
+
+  <!-- ⭐ SIDEBAR ⭐ -->
+  <aside class="sidebar">
+    <div class="sidebar-title">Chat History</div>
+    <div id="historyList"></div>
+  </aside>
+
+  <!-- ⭐ MAIN CHAT UI ⭐ -->
   <div class="chat-container">
     <header class="chat-header">
       <div class="chat-header-icon"></div>
@@ -47,54 +105,105 @@
     </form>
   </div>
 
-  <script>
-    const chatForm = document.getElementById("chatForm");
-    const chatInput = document.getElementById("chatInput");
-    const chatMessages = document.getElementById("chatMessages");
-    const typingIndicator = document.getElementById("typingIndicator");
+</div>
 
-    function addMessage(text, role = "bot") {
-      const div = document.createElement("div");
-      div.classList.add("message", role);
-      div.textContent = text;
-      chatMessages.appendChild(div);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
+<script>
+  const chatForm = document.getElementById("chatForm");
+  const chatInput = document.getElementById("chatInput");
+  const chatMessages = document.getElementById("chatMessages");
+  const typingIndicator = document.getElementById("typingIndicator");
+  const historyList = document.getElementById("historyList");
+
+  let conversations = [];
+  let currentConversation = [];
+
+  function addMessage(text, role = "bot") {
+    const div = document.createElement("div");
+    div.classList.add("message", role);
+    div.textContent = text;
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    currentConversation.push({ text, role });
+  }
+
+  /* ⭐ BACKEND CALL ⭐ */
+  async function customAI(userText) {
+    const response = await fetch("/api/groq", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userText })
+    });
+
+    const data = await response.json();
+    return data.choices[0].message.content;
+  }
+
+  /* ⭐ CHAT HISTORY FUNCTIONS ⭐ */
+  function saveConversation() {
+    if (currentConversation.length === 0) return;
+
+    const title = currentConversation[0]?.text || "New Chat";
+
+    conversations.push({
+      title,
+      messages: [...currentConversation]
+    });
+
+    renderHistory();
+  }
+
+  function renderHistory() {
+    historyList.innerHTML = "";
+
+    conversations.forEach((conv, index) => {
+      const item = document.createElement("div");
+      item.classList.add("history-item");
+      item.textContent = conv.title.slice(0, 25);
+
+      item.onclick = () => loadConversation(index);
+
+      historyList.appendChild(item);
+    });
+  }
+
+  function loadConversation(index) {
+    const conv = conversations[index];
+    chatMessages.innerHTML = "";
+
+    conv.messages.forEach(msg => {
+      addMessage(msg.text, msg.role);
+    });
+
+    currentConversation = [...conv.messages];
+  }
+
+  /* ⭐ HANDLE SEND ⭐ */
+  async function handleSubmit(event) {
+    event.preventDefault();
+    const text = chatInput.value.trim();
+    if (!text) return;
+
+    saveConversation();
+    currentConversation = [];
+
+    addMessage(text, "user");
+    chatInput.value = "";
+
+    typingIndicator.style.display = "block";
+
+    try {
+      const reply = await customAI(text);
+      addMessage(reply, "bot");
+    } catch {
+      addMessage("Lil' AI couldn't connect to the server.", "bot");
     }
 
-    /* ⭐ NEW SAFE BACKEND VERSION ⭐ */
-    async function customAI(userText) {
-      const response = await fetch("/api/groq", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userText })
-      });
+    typingIndicator.style.display = "none";
+  }
 
-      const data = await response.json();
-      return data.choices[0].message.content;
-    }
-
-    async function handleSubmit(event) {
-      event.preventDefault();
-      const text = chatInput.value.trim();
-      if (!text) return;
-
-      addMessage(text, "user");
-      chatInput.value = "";
-
-      typingIndicator.style.display = "block";
-
-      try {
-        const reply = await customAI(text);
-        addMessage(reply, "bot");
-      } catch {
-        addMessage("Lil' AI couldn't connect to the server.", "bot");
-      }
-
-      typingIndicator.style.display = "none";
-    }
-
-    chatForm.addEventListener("submit", handleSubmit);
-  </script>
+  chatForm.addEventListener("submit", handleSubmit);
+</script>
 
 </body>
 </html>
